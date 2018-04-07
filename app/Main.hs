@@ -1,6 +1,7 @@
 module Main where
 
-import Lib
+import RayLib
+import Numeric.LinearAlgebra
 
 main :: IO ()
-main = someFunc
+main = putStrLn "Nothing here yet"
