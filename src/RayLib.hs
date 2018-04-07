@@ -14,6 +14,12 @@ data Isect = Isect {iT :: Double,
                     iObject :: Geometry,
                     iMaterial :: Material}
 
+instance Eq Isect where
+    (Isect iT1 iNormal1 _ _) == (Isect iT2 iNormal2 _ _) = (iT1 == iT2) && (iNormal1 == iNormal2)
+
+instance Ord Isect where
+    compare (Isect iT1 _ _ _) (Isect iT2 _ _ _) = compare iT1 iT2
+
 instance Show Isect where
     show (Isect t n _ _) = "time: " ++ show t ++ ", normal: " ++ show n
 
@@ -81,8 +87,22 @@ data Scene = Scene {scLights :: Lights,
                     scObjects :: Objects,
                     scAmbient :: Color}
 
-intersect :: Geometry -> Ray -> Maybe Isect
-intersect s@(Sphere center radius material) r@(Ray rayPos rayDir) =
+data Camera = Camera {eye :: Vector Double,
+                      u :: Vector Double,
+                      v :: Vector Double,
+                      look :: Vector Double}
+
+camera :: Camera
+camera = Camera (fromList [0,0,0]) (fromList [1,0,0]) (fromList [0,1,0]) (fromList [0,0,-1])
+
+rayThrough :: Camera -> Double -> Double -> Ray
+rayThrough (Camera eye u v look) x y = Ray eye dir
+    where dir = normalize (look + x' * u + y' * v)
+          x' = fromList [x - 0.5]
+          y' = fromList [y - 0.5]
+
+intersectObj :: Ray -> Geometry -> Maybe Isect
+intersectObj r@(Ray rayPos rayDir) s@(Sphere center radius material) =
     let v = center - rayPos in
     let b = v <.> rayDir in
     let discriminant = b * b - v <.> v + radius * radius in
@@ -97,6 +117,14 @@ intersect s@(Sphere center radius material) r@(Ray rayPos rayDir) =
             pure (Isect t1 (normalize (at t1 r)) s material)
         else
             pure (Isect t2 (normalize (at t2 r)) s material)
+
+intersect :: Scene -> Ray -> Maybe Isect
+intersect scene@(Scene _ objects _) r =
+    let isects = filter (/= Nothing) . map (intersectObj r) $ objects in
+    if length isects == 0 then
+        Nothing
+    else
+        minimum isects
 
 perLightDiffuse :: Light -> Vector Double -> Vector Double -> Vector Double -> Double
 perLightDiffuse light isectPoint rayDir normal = 
