@@ -92,9 +92,20 @@ data Camera = Camera {eye :: Vector Double,
                       u :: Vector Double,
                       v :: Vector Double,
                       look :: Vector Double}
+    deriving (Show, Eq)
 
-camera :: Camera
-camera = Camera (fromList [0,0,0]) (fromList [1,0,0]) (fromList [0,1,0]) (fromList [0,0,-1])
+getCamera :: Vector Double -> Vector Double -> Vector Double -> Double -> Double -> Camera
+getCamera position viewDir upDir aspect fov =
+    let z = -viewDir in
+    let y = upDir in
+    let x = cross y z in
+    let m = fromRows [x,y,z] in
+    let fov' = fov * pi / 180.0 in
+    let normalizedHeight = 2 * tan (fov' / 2.0) in
+    let u = (flatten (m <> (fromColumns [(fromList [1,0,0])]))) * (fromList [normalizedHeight * aspect]) in
+    let v = (flatten (m <> (fromColumns [(fromList [0,1,0])]))) * (fromList [normalizedHeight]) in
+    let look = (flatten (m <> (fromColumns [(fromList [0,0,-1])]))) in
+    Camera position u v look
 
 rayThrough :: Camera -> Double -> Double -> Ray
 rayThrough (Camera eye u v look) x y = Ray eye dir

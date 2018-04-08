@@ -15,10 +15,11 @@ main = do let screen = Screen 256 256
           let kt = \x -> (fromList [0,0,0])
           let shininess = \x -> 64
           let material = Material ka ks kd ke kr kt shininess
-          let sphere1 = Sphere (fromList [-5.0,0.0,-5.0]) 5.0 material
+          let sphere1 = Sphere (fromList [0,0,0]) 1.5 material
           let sphere2 = Sphere (fromList [-5.0,-5.0,0.0]) 5.0 material
           let sphere3 = Sphere (fromList [0.0,-5.0,-5.0]) 5.0 material
           let scene = Scene [] [sphere1] (fromList [1,0,0.1])
+          let camera = getCamera (fromList [0,0,-4]) (fromList [0,0,1]) (fromList [0,1,0]) 1 90
           let image = traceImage scene screen camera
           let toWrite = render image
           G.writeImage "test.png" toWrite
