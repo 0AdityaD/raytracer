@@ -35,7 +35,8 @@ instance At Isect where
 
 type Color = Vector Double
 
-type MatParam = Isect -> Color
+data MatParam = MatParam Color
+    deriving (Show, Read, Eq)
 
 data Material = Material {ka :: MatParam,
                           ks :: MatParam,
@@ -43,7 +44,8 @@ data Material = Material {ka :: MatParam,
                           ke :: MatParam,
                           kr :: MatParam,
                           kt :: MatParam,
-                          shininess :: Isect -> Double}
+                          shininess :: Double}
+    deriving (Show, Read, Eq)
 
 data Light =    PointLight       {lColor :: Color,
                                   lPosition :: Vector Double,
@@ -52,7 +54,7 @@ data Light =    PointLight       {lColor :: Color,
                                   quadraticTerm :: Double}
             |   DirectionalLight {lColor :: Color,
                                   lOrientation :: Vector Double}
-    deriving (Show, Eq)
+    deriving (Show, Read, Eq)
 
 type Lights = [Light]
 
@@ -77,22 +79,20 @@ shadowAttenuation :: Light -> Ray -> Vector Double -> Vector Double
 data Geometry = Sphere {sphereCenter :: Vector Double,
                         sphereRadius :: Double,
                         sphereMaterial :: Material}
-
-instance Show Geometry where
-    show (Sphere center radius material) =
-        show "center: " ++ show center ++ ", radius" ++ show radius
+    deriving (Show, Read, Eq)
 
 type Objects = [Geometry]
 
 data Scene = Scene {scLights :: Lights,
                     scObjects :: Objects,
                     scAmbient :: Color}
+    deriving (Show, Read, Eq)
 
 data Camera = Camera {eye :: Vector Double,
                       u :: Vector Double,
                       v :: Vector Double,
                       look :: Vector Double}
-    deriving (Show, Eq)
+    deriving (Show, Read, Eq)
 
 getCamera :: Vector Double -> Vector Double -> Vector Double -> Double -> Double -> Camera
 getCamera position viewDir upDir aspect fov =
@@ -167,9 +167,11 @@ combineLightTerms isectPoint rayDir normal alpha light =
 
 shade :: Scene -> Ray -> Isect -> Color
 shade (Scene lights objects ambient) r@(Ray p d) i@(Isect t normal _ material) = 
-    let (Material ka ks kd ke kr kt shiny) = material in
-    let emissive = ke i in
-    let amb = (ka i) * ambient in
+    let (Material kaM ksM kdM keM krM ktM shiny) = material in
+    let (MatParam ke) = keM in
+    let emissive = ke in
+    let (MatParam ka) = kaM in
+    let amb = ka * ambient in
     let isectPoint = at t r in
-    let alpha = shiny i in
+    let alpha = shiny in
     emissive + amb + (sum . map (combineLightTerms isectPoint d normal alpha) $ lights)

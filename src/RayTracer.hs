@@ -7,12 +7,16 @@ import qualified Debug.Trace as Debug
 
 data Screen = Screen {screenWidth :: Int,
                       screenHeight :: Int}
+    deriving (Show, Read, Eq)
+
+clamp :: Double -> Double -> Vector Double -> Vector Double
+clamp a b = fromList . map (\x -> max a (min b x)) . toList
 
 trace :: Scene -> Camera -> Double -> Double -> Color
 trace scene camera x y =
     let ray = rayThrough camera x y in
     let color = traceRay scene ray 0 0 in
-    color
+    clamp 0 1 color
 
 tracePixel :: Scene -> Screen -> Camera -> Int -> Int -> Color
 tracePixel scene (Screen width height) camera i j =
