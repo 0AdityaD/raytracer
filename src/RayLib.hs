@@ -1,6 +1,7 @@
 module RayLib where
 
 import Numeric.LinearAlgebra
+import qualified Debug.Trace as Debug
 
 data Ray = Ray {rayOrigin :: Vector Double,
                 rayDirection :: Vector Double}

@@ -3,6 +3,7 @@ module RayTracer where
 import RayLib
 import Numeric.LinearAlgebra
 import qualified Graphics.Image as G
+import qualified Debug.Trace as Debug
 
 data Screen = Screen {screenWidth :: Int,
                       screenHeight :: Int}
@@ -10,7 +11,8 @@ data Screen = Screen {screenWidth :: Int,
 trace :: Scene -> Camera -> Double -> Double -> Color
 trace scene camera x y =
     let ray = rayThrough camera x y in
-    fromList [0,0,0]
+    let color = traceRay scene ray 0 0 in
+    color
 
 tracePixel :: Scene -> Screen -> Camera -> Int -> Int -> Color
 tracePixel scene (Screen width height) camera i j =
