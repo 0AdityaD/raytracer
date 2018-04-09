@@ -1,7 +1,6 @@
 module Main where
 
 import RayLib
-import RayTracer
 import Numeric.LinearAlgebra
 import qualified Graphics.Image as G
 

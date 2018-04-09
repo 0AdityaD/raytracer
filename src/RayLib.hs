@@ -1,6 +1,7 @@
 module RayLib where
 
 import Numeric.LinearAlgebra
+import qualified Graphics.Image as G
 import qualified Debug.Trace as Debug
 
 data Ray = Ray {rayOrigin :: Vector Double,
@@ -67,14 +68,34 @@ getDirection (PointLight _ pos _ _ _) p = normalize (pos - p)
 getDirection (DirectionalLight _ o) _ = -o
 
 distanceAttenuation :: Light -> Vector Double -> Double
-distanceAttenuation (PointLight pos _ c b a) p = min 1.0 atten
+distanceAttenuation (PointLight _ pos c b a) p = min 1.0 atten
     where atten = (c * dist * dist + b * dist + a) ** (-1.0)
           dist = norm_2 (p - pos)
 distanceAttenuation (DirectionalLight _ _) p = 1.0
 
-{- TODO: this requires scene implementation
-shadowAttenuation :: Light -> Ray -> Vector Double -> Vector Double
--}
+shadowAttenuation :: Scene -> Light -> Vector Double -> Double
+shadowAttenuation scene (PointLight _ pos _ _ _) p = 
+    let shadowDir = normalize (pos - p) in
+    let ray = Ray p shadowDir in
+    let isect = intersect scene ray in
+    case isect of
+        Nothing -> 1
+        Just (Isect t _ _ _) ->
+            if (t < 0) || (t > norm_2 (pos - p)) then
+                1
+            else
+                0
+shadowAttenuation scene dl@(DirectionalLight _ _) p =
+    let shadowDir = normalize (getDirection dl p) in
+    let ray = Ray p shadowDir in
+    let isect = intersect scene ray in
+    case isect of
+        Nothing -> 1
+        Just (Isect t _ _ _) ->
+            if t < 0 then
+                1
+            else
+                0
 
 data Geometry = Sphere {sphereCenter :: Vector Double,
                         sphereRadius :: Double,
@@ -149,7 +170,7 @@ perLightSpecular :: Light -> Vector Double -> Vector Double -> Vector Double -> 
 perLightSpecular light isectPoint rayDir normal =
     let lightDir = getDirection light isectPoint in 
     let reflect = lightDir - (fromList [2 * (lightDir <.> normal)]) * normal in
-    if norm_2 reflect > 0 then
+    if norm_2 reflect == 0 then
         0
     else
         let reflectNorm = normalize reflect in
@@ -157,16 +178,16 @@ perLightSpecular light isectPoint rayDir normal =
         let smax = max sdot 0.0 in
         smax
 
-combineLightTerms :: Vector Double -> Vector Double -> Vector Double -> Double -> Light -> Color
-combineLightTerms isectPoint rayDir normal alpha light =
+combineLightTerms :: Scene -> Vector Double -> Vector Double -> Vector Double -> Double -> Light -> Color
+combineLightTerms scene isectPoint rayDir normal alpha light =
     let diffuse = perLightDiffuse light isectPoint rayDir normal in
     let specular = perLightSpecular light isectPoint rayDir normal in
     let color = lightColor light in
-    let atten = distanceAttenuation light isectPoint in
+    let atten = (distanceAttenuation light isectPoint) * (shadowAttenuation scene light isectPoint) in
     color * (fromList [(diffuse + specular) * atten])
 
 shade :: Scene -> Ray -> Isect -> Color
-shade (Scene lights objects ambient) r@(Ray p d) i@(Isect t normal _ material) = 
+shade scene@(Scene lights objects ambient) r@(Ray p d) i@(Isect t normal _ material) = 
     let (Material kaM ksM kdM keM krM ktM shiny) = material in
     let (MatParam ke) = keM in
     let emissive = ke in
@@ -174,4 +195,49 @@ shade (Scene lights objects ambient) r@(Ray p d) i@(Isect t normal _ material) =
     let amb = ka * ambient in
     let isectPoint = at t r in
     let alpha = shiny in
-    emissive + amb + (sum . map (combineLightTerms isectPoint d normal alpha) $ lights)
+    emissive + amb + (sum . map (combineLightTerms scene isectPoint d normal alpha) $ lights)
+
+data Screen = Screen {screenWidth :: Int,
+                      screenHeight :: Int}
+    deriving (Show, Read, Eq)
+
+clamp :: Double -> Double -> Vector Double -> Vector Double
+clamp a b = fromList . map (\x -> max a (min b x)) . toList
+
+trace :: Scene -> Camera -> Double -> Double -> Color
+trace scene camera x y =
+    let ray = rayThrough camera x y in
+    let color = traceRay scene ray 0 0 in
+    clamp 0 1 color
+
+tracePixel :: Scene -> Screen -> Camera -> Int -> Int -> Color
+tracePixel scene (Screen width height) camera i j =
+    let x = (fromIntegral i :: Double) / (fromIntegral width :: Double) in
+    let y = (fromIntegral j :: Double) / (fromIntegral height :: Double) in
+    let color = trace scene camera x y in 
+    (fromList [255.0]) * color
+
+traceRay :: Scene -> Ray -> Int -> Double -> Color
+traceRay scene ray@(Ray p d) depth t =
+    let mIsect = intersect scene ray in
+    case mIsect of
+        Nothing -> fromList[0,0,0]
+        (Just isect) -> shade scene ray isect
+
+type Image = ([[Color]], Int, Int)
+
+traceImage :: Scene -> Screen -> Camera -> Image
+traceImage scene screen@(Screen width height) camera =
+    let (w, h) = (width - 1, height - 1) in
+    let img = [[tracePixel scene screen camera i j | j <- [0..h]] | i <- [0..w]] in
+    (img, width, height)
+
+rgbify :: [Double] -> G.Pixel G.RGB Double
+rgbify vec = G.PixelRGB (r / 255.0) (g / 255.0) (b / 255.0)
+    where r = vec !! 0
+          g = vec !! 1
+          b = vec !! 2
+
+render :: Image -> G.Image G.VU G.RGB Double
+render (image, width, height) = G.fromLists . format $ image
+    where format = map (map rgbify) . map (map toList)
