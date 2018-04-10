@@ -17,7 +17,7 @@ main = do let screen = Screen 256 256
           let sphere1 = Sphere (fromList [0,0,0]) 1.5 material
           let scene = Scene [] [sphere1] (fromList [1,0,0.1])
           putStrLn . show $ scene
-          let camera = getCamera (fromList [0,0,-4]) (fromList [0,0,1]) (fromList [0,1,0]) 1 90
+          let camera = Camera (fromList [0,0,-4]) (fromList [0,0,1]) (fromList [0,1,0]) 1 90
           putStrLn . show $ camera
           putStrLn . show $ screen
           let image = traceImage scene screen camera

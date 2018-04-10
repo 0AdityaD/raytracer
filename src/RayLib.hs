@@ -110,13 +110,14 @@ data Scene = Scene {scLights :: Lights,
     deriving (Show, Read, Eq)
 
 data Camera = Camera {eye :: Vector Double,
-                      u :: Vector Double,
-                      v :: Vector Double,
-                      look :: Vector Double}
+                      viewDir :: Vector Double,
+                      upDir :: Vector Double,
+                      aspect :: Double,
+                      fov :: Double}
     deriving (Show, Read, Eq)
 
-getCamera :: Vector Double -> Vector Double -> Vector Double -> Double -> Double -> Camera
-getCamera position viewDir upDir aspect fov =
+rayThrough :: Camera -> Double -> Double -> Ray
+rayThrough (Camera eye viewDir upDir aspect fov) xx yy =
     let z = -viewDir in
     let y = upDir in
     let x = cross y z in
@@ -126,13 +127,10 @@ getCamera position viewDir upDir aspect fov =
     let u = (flatten (m <> (fromColumns [(fromList [1,0,0])]))) * (fromList [normalizedHeight * aspect]) in
     let v = (flatten (m <> (fromColumns [(fromList [0,1,0])]))) * (fromList [normalizedHeight]) in
     let look = (flatten (m <> (fromColumns [(fromList [0,0,-1])]))) in
-    Camera position u v look
-
-rayThrough :: Camera -> Double -> Double -> Ray
-rayThrough (Camera eye u v look) x y = Ray eye dir
-    where dir = normalize (look + x' * u + y' * v)
-          x' = fromList [x - 0.5]
-          y' = fromList [y - 0.5]
+    let x' = fromList [xx - 0.5] in
+    let y' = fromList [yy - 0.5] in
+    let dir = normalize (look + x' * u + y' * v) in
+    Ray eye dir
 
 intersectObj :: Ray -> Geometry -> Maybe Isect
 intersectObj r@(Ray rayPos rayDir) s@(Sphere center radius material) =
@@ -217,12 +215,28 @@ tracePixel scene (Screen width height) camera i j =
     let color = trace scene camera x y in 
     (fromList [255.0]) * color
 
+reflection :: Scene -> Ray -> Isect -> Int -> Color
+reflection scene ray@(Ray p d) isect@(Isect t n _ mat) depth =
+    let reflectR = d - (fromList [2 * d <.> n]) * n in
+    if reflectR == 0 then
+        fromList ([0,0,0])
+    else
+        let isectPointApprox = at (t - eps) ray in
+        let reflRay = Ray isectPointApprox (normalize reflectR) in
+        let (Material _ _ _ _ (MatParam kr)  _ _) = mat in 
+        kr * (traceRay scene reflRay (depth - 1) 0)
+
 traceRay :: Scene -> Ray -> Int -> Double -> Color
 traceRay scene ray@(Ray p d) depth t =
     let mIsect = intersect scene ray in
     case mIsect of
         Nothing -> fromList[0,0,0]
-        (Just isect) -> shade scene ray isect
+        (Just isect) -> let colorC = shade scene ray isect in
+                        if depth == 0 then
+                            colorC
+                        else
+                            let colorRefl = reflection scene ray isect depth in
+                            colorC + colorRefl
 
 type Image = ([[Color]], Int, Int)
 
